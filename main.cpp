@@ -151,7 +151,7 @@ private:
     }
 
     static auto is_keyword_char(char c) -> bool {
-        return c == '_' or std::isalpha(c);
+        return c == '_' or c == '-' or std::isalpha(c);
     }
 
     auto parse_other() -> ExpToken {
@@ -219,7 +219,7 @@ private:
             tk = std::make_optional(TokenType::False);
         }
         if (!tk.has_value()) {
-            return new_invalid_error(source_range, raw);
+            tk = std::make_optional(TokenType::Identifier);
         }
 
         return ExpToken{
@@ -274,7 +274,7 @@ private:
 };
 
 int main() {
-    auto source = "true 123 and 4 false 23 or (\ntrue or((())) true false )"s;
+    auto source = "true some_thing 123 and 4 false 23 or (\ntrue or((())) true false )"s;
 
     auto lexer = Lexer(source);
     auto const tokens = lexer.lex();
