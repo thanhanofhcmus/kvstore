@@ -4,4 +4,6 @@ ColumnLimit: 80
 IndentWidth: 4
 AccessModifierOffset: -4
 PointerAlignment: Right
-AllowShortCaseLabelsOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: false
+BreakConstructorInitializers: BeforeColon
+AllowShortFunctionsOnASingleLine: All
