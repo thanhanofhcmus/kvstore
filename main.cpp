@@ -21,11 +21,13 @@ enum class TokenType {
 
 struct SourcePosition {
     ssize_t line;
-    ssize_t colum;
+    ssize_t column;
 };
 
 std::ostream &operator<<(std::ostream &o, SourcePosition const &p) {
-    o << '[' << p.line << ':' << p.colum << ']';
+    constexpr int w = 2;
+    o << '[' << std::setw(w) << p.line << ':'
+        << std::setw(w) << p.column << ']';
     return o;
 }
 
@@ -70,7 +72,7 @@ public:
     explicit Lexer(std::string const &source_)
         : source(source_),
           current_idx(0),
-          current_position({}) {
+          current_position({.line = 1, .column = 1}) {
     }
 
     auto lex() -> Expected<std::vector<Token>, ParseError> {
@@ -87,6 +89,8 @@ public:
             switch (c) {
             case ' ':
             case '\t':
+            case '\r':
+            case '\n':
                 advance();
                 break;
             case '(':
@@ -140,7 +144,8 @@ private:
                 ParseError{
                     .type = ParseErrorType::UnknownToken,
                     .source_range = source_range,
-                    .cause = std::format("unknown literal `{}`", raw),
+                    .cause = std::format("unknown literal `{}` [{}:{}]",
+                                         raw, start.line, start.column),
                 }
             };
         }
@@ -179,11 +184,11 @@ private:
 
         const auto old_idx = current_idx;
         current_idx += 1;
-        current_position.colum += 1;
+        current_position.column += 1;
 
         if (last_value == '\n') {
             current_position.line += 1;
-            current_position.colum = 0;
+            current_position.column = 1;
         }
 
         last_value = source[old_idx];
@@ -197,7 +202,7 @@ private:
 };
 
 int main() {
-    auto source = "true and false or (true or((())) true false )"s;
+    auto source = "true and false or (\ntrue or((())) true false )"s;
 
     auto lexer = Lexer(source);
     auto const tokens = lexer.lex();
