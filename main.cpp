@@ -17,7 +17,33 @@ enum class TokenType {
 
     LParen,
     RParen,
+
+    Number,
+    Identifier,
 };
+
+constexpr auto token_type_repr(TokenType t) {
+    switch (t) {
+    case TokenType::And:
+        return "and";
+    case TokenType::Or:
+        return "or";
+    case TokenType::True:
+        return "true";
+    case TokenType::False:
+        return "false";
+    case TokenType::LParen:
+        return "lparen";
+    case TokenType::RParen:
+        return "rparen";
+    case TokenType::Number:
+        return "number";
+    case TokenType::Identifier:
+        return "identifier";
+    default:
+        return "unknown";
+    }
+}
 
 struct SourcePosition {
     ssize_t line;
@@ -26,8 +52,7 @@ struct SourcePosition {
 
 std::ostream &operator<<(std::ostream &o, SourcePosition const &p) {
     constexpr int w = 2;
-    o << '[' << std::setw(w) << p.line << ':'
-        << std::setw(w) << p.column << ']';
+    o << '[' << std::setw(w) << p.line << ':' << std::setw(w) << p.column << ']';
     return o;
 }
 
@@ -48,9 +73,8 @@ struct Token {
 };
 
 std::ostream &operator<<(std::ostream &o, Token const &tk) {
-    o << '{' << static_cast<int>(tk.type) << " | " <<
-        tk.source_range << " | " <<
-        std::quoted(tk.literal) << '}';
+    o << '{' << std::setw(10) << token_type_repr(tk.type)
+        << " | " << tk.source_range << " | " << std::quoted(tk.literal) << '}';
     return o;
 }
 
@@ -104,7 +128,7 @@ public:
                 advance();
                 break;
             default: {
-                auto const tk_exp = keyword_or_identifier();
+                auto const tk_exp = parse_other();
                 if (tk_exp.has_error()) {
                     return result_t{UnexpectTag, tk_exp.error()};
                 }
@@ -118,17 +142,72 @@ public:
     }
 
 private:
-    auto keyword_or_identifier() -> ExpToken {
+    static auto is_num_char(char c) -> bool {
+        return '0' <= c and c <= '9';
+    }
+
+    static auto is_numkw_char(char c) -> bool {
+        return is_num_char(c) or is_keyword_char(c);
+    }
+
+    static auto is_keyword_char(char c) -> bool {
+        return c == '_' or std::isalpha(c);
+    }
+
+    auto parse_other() -> ExpToken {
+        auto const c = get_current();
+        if (is_num_char(c)) {
+            return parse_number();
+        }
+        if (is_keyword_char(c)) {
+            return parse_keyword_or_identifier();
+        }
+        return new_invalid_error();
+    }
+
+    [[nodiscard]] auto new_invalid_error(
+        std::optional<SourceRange> const &o_rs = std::nullopt,
+        std::optional<std::string_view> const &o_raw = std::nullopt) const -> ExpToken {
+        const auto source_range = o_rs.value_or(SourceRange{current_position, current_position});
+        const auto [line, column] = source_range.start;
+        const auto raw = o_raw.value_or(std::string_view{source}.substr(current_idx, 1));
+        return ExpToken{
+            ParseError{
+                .type = ParseErrorType::UnknownToken,
+                .source_range = source_range,
+                .cause = std::format(
+                    "unknown literal `{}` [{}:{}]",
+                    raw, line, column),
+            }
+        };
+    }
+
+    auto parse_number() -> ExpToken {
         auto const start = current_position;
         auto const start_idx = current_idx;
-        while (not is_at_end() and std::isalpha(get_current())) {
+        while (not is_at_end() and is_num_char(get_current())) {
+            advance();
+        }
+        auto const raw = std::string_view{source}.substr(start_idx, current_idx - start_idx);
+        return ExpToken{
+            Token{
+                .type = TokenType::Number,
+                .literal = raw,
+                .source_range = {start, current_position}
+            }
+        };
+    }
+
+    auto parse_keyword_or_identifier() -> ExpToken {
+        auto const start = current_position;
+        auto const start_idx = current_idx;
+        while (not is_at_end() and is_numkw_char(get_current())) {
             advance();
         }
         auto const source_range = SourceRange{start, current_position};
 
         // check for key worlds
-        auto const raw = std::string_view{source}.
-            substr(start_idx, current_idx - start_idx);
+        auto const raw = std::string_view{source}.substr(start_idx, current_idx - start_idx);
         auto tk = std::optional<TokenType>();
         if (raw == "and"sv) {
             tk = std::make_optional(TokenType::And);
@@ -140,14 +219,7 @@ private:
             tk = std::make_optional(TokenType::False);
         }
         if (!tk.has_value()) {
-            return ExpToken{
-                ParseError{
-                    .type = ParseErrorType::UnknownToken,
-                    .source_range = source_range,
-                    .cause = std::format("unknown literal `{}` [{}:{}]",
-                                         raw, start.line, start.column),
-                }
-            };
+            return new_invalid_error(source_range, raw);
         }
 
         return ExpToken{
@@ -202,7 +274,7 @@ private:
 };
 
 int main() {
-    auto source = "true and false or (\ntrue or((())) true false )"s;
+    auto source = "true 123 and 4 false 23 or (\ntrue or((())) true false )"s;
 
     auto lexer = Lexer(source);
     auto const tokens = lexer.lex();
