@@ -1,7 +1,6 @@
 #ifndef QUERY_LANG_EXPECTED_H
 #define QUERY_LANG_EXPECTED_H
 
-#include <concepts>
 #include <type_traits>
 #include <variant>
 
@@ -71,9 +70,7 @@ public:
         : _variant(unexpected_type{err}) {
     }
 
-    [[nodiscard]]
-
-    constexpr auto has_value() const noexcept -> bool {
+    [[nodiscard]] constexpr auto has_value() const noexcept -> bool {
         return std::holds_alternative<value_type>(_variant);
     }
 

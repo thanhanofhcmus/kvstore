@@ -116,7 +116,7 @@ auto Lexer::parse_keyword_or_identifier() -> ExpToken {
     }
     auto const source_range = SourceRange{start, current_position};
 
-    // check for key worlds
+    // check for keywords
     auto const raw = std::string_view{source}.substr(start_idx, current_idx - start_idx);
     auto tk = std::optional<TokenType>();
     if (raw == "and"sv) {
